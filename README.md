@@ -59,34 +59,35 @@ which format is explained in Appendix D.
 
 Appendix A. Explanation of the input parameters in Step 1
 ============================
-[totalLifecycle] = total number of seconds 
-[numOfFloors] = total number of floors
-[numOfObjPerFloor] = total number of objects per floor
-[numOfObjs] = total number of objects 
+	[totalLifecycle] = total number of seconds 
+	[numOfFloors] = total number of floors
+	[numOfObjPerFloor] = total number of objects per floor
+	[numOfObjs] = total number of objects 
 
 
 Appendix B. Explanation of the input parameters in Step 2
 ============================
-[statFilename] = the name of the output stat file
-[numOfTrials] = number of trials to run and to be averaged
-[totalLifecycle] = total number of seconds 
-[distribution] = the distribution or the distance decay function used
-    0 = Guassian Distribution
-    1 = Constant Law
-    2 = Linear Decay Law
-    3 = Inverse 1st Power Law
-    4 = Inverse 2nd Power Law
-    5 = Exponential Decay Law
-[numOfFloors] = total number of floors
-[numOfObjPerFloor] = total number of objects per floor
-[numOfObjs] = total number of objects 
-[epsilon] = the distance threshold parameter
-[dia] = the dia parameter
-[batchProcess] = 1 = with batch processing; 0 = no
-[betaPrune] = 1 = with prbaboility-based pruning;0=no
-[T_p] = the T_{FP} parameter
-[T_Min] = the T_{Min} parameter
-[T_Max] = the T_{Max} parameter
+
+    [statFilename] = the name of the output stat file
+    [numOfTrials] = number of trials to run and to be averaged
+    [totalLifecycle] = total number of seconds 
+    [distribution] = the distribution or the distance decay function used
+        0 = Guassian Distribution
+        1 = Constant Law
+        2 = Linear Decay Law
+        3 = Inverse 1st Power Law
+        4 = Inverse 2nd Power Law
+        5 = Exponential Decay Law
+    [numOfFloors] = total number of floors
+    [numOfObjPerFloor] = total number of objects per floor
+    [numOfObjs] = total number of objects 
+    [epsilon] = the distance threshold parameter
+    [radius] = the radius parameter
+    [batchProcess] = 1 = with batch processing; 0 = no
+    [betaPrune] = 1 = with prbaboility-based pruning;0=no
+    [T_p] = the T_{FP} parameter
+    [T_Min] = the T_{Min} parameter
+    [T_Max] = the T_{Max} parameter
 
 
 Appendix C. The format of monitoring result
