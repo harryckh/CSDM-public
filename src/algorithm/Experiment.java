@@ -41,7 +41,7 @@ public class Experiment {
 		if (args.length < 14) {
 			System.out.println(
 					"usage: [statFilename][numOfTrials] [totalLifecycle] [dis] [n/f] [f] [n] [d] [r] [batch] [prune] [T_p] [T_Min] [T_Max]");
-			System.out.println("e.g., java -jar exp.jar example.txt 5 60 0 500 20 10000 3 2 1 1 10 5 20");
+			System.out.println("e.g., java -jar sdm.jar example.txt 5 60 0 500 20 10000 3 2 1 1 10 5 20");
 			System.exit(-1);
 		}
 
