@@ -1172,6 +1172,7 @@ public class DataGen {
 		System.out.println("args.length: " + args.length);
 		if (args.length < 4) {
 			System.out.println("usage: [totalLifecycle] [numOfObjPerFloor] [numOfFloors] [numOfObjs] ");
+			System.out.println("e.g., java -jar dataGen.jar 60 500 20 10000");
 			return;
 		} else {
 			int c = 0;
