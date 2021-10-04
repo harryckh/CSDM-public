@@ -111,6 +111,7 @@ Appendix C. The format of monitoring result
 
 
 where
+
     t0 is current time X,
     o1/o2:dist1 indicate a pair (o1,o2) is in contact at t0 with dist(o1,o2,t0) = dist1
     o3/o4vdist2 indicate a pair (o3,o4) is in contact at t0 by probability-based UB
