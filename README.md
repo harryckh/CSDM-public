@@ -17,6 +17,7 @@ Step 1: Generate the synthetic data (A sample dataset is provided, you need to r
 The details of the input parameters can be found in Appendix A.
 
 The following files will be generated.
+
     Par.txt       = the list of partitions
     Door.txt      = the list of doors
     P2D.txt       = Par.txt
