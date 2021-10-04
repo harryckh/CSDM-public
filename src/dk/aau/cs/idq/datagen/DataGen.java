@@ -1172,7 +1172,7 @@ public class DataGen {
 		System.out.println("args.length: " + args.length);
 		if (args.length < 4) {
 			System.out.println("usage: [totalLifecycle] [numOfObjPerFloor] [numOfFloors] [numOfObjs] ");
-//			return;
+			return;
 		} else {
 			int c = 0;
 

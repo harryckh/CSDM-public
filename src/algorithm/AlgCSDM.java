@@ -25,7 +25,7 @@ public class AlgCSDM {
 	private int monTimestampsSize = 60;
 
 	public static double distTH = 3;
-	public static double r_min = 2;
+	public static double r_min = 2; 
 
 	public static int batchProcessing = 1;
 	public static int betaPruning = 1;
