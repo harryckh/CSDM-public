@@ -2,10 +2,10 @@
 
 Notes
 =======================
-  1. This code is developed by Harry Kai-Ho Chan (kai-ho@ruc.dk).
-	2. This code is written in Java.
-  3. The jar is built in Java 14.
-	4. This code is tested on the macOS 10.15.7 environment.
+    1. This code is developed by Harry Kai-Ho Chan (kai-ho@ruc.dk).
+    2. This code is written in Java.
+    3. The jar is built in Java 14.
+    4. This code is tested on the macOS 10.15.7 environment.
 
 Usage
 =======================
