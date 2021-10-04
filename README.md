@@ -57,7 +57,7 @@ the running statistics are stored in [statFilename]
 which format is explained in Appendix D.
 
 
-Appendix A. Explanation of the input parameters in Step 1.
+Appendix A. Explanation of the input parameters in Step 1
 ============================
 [totalLifecycle] = total number of seconds 
 [numOfFloors] = total number of floors
@@ -65,7 +65,7 @@ Appendix A. Explanation of the input parameters in Step 1.
 [numOfObjs] = total number of objects 
 
 
-Appendix B. Explanation of the input parameters in Step 2.
+Appendix B. Explanation of the input parameters in Step 2
 ============================
 [statFilename] = the name of the output stat file
 [numOfTrials] = number of trials to run and to be averaged
