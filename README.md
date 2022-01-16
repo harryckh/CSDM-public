@@ -38,7 +38,7 @@ Step 2: Run SDM
 
 An example parameter setting is shown as follows.
 
-    java -jar sdm.jar example.txt 5 60 0 500 20 10000 3 2 1 1 10 5 20
+    java -jar sdm.jar 5 60 0 500 20 10000 3 4 1 1 10 5 20
 
 
 The explanation of the input parameters can be found in Appendix B.
