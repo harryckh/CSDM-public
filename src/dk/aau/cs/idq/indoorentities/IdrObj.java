@@ -39,7 +39,8 @@ public class IdrObj {
 
 	private HashMap<Integer, Double> UncertainSampledProb; 		// uncertain sampled result
 
-	
+
+	private double radius;
 	//-----------
 	private IndoorUR ur;
 	
@@ -863,6 +864,14 @@ public class IdrObj {
 		int curParID = Integer.valueOf(items[5]);
 		IdrObj newObj = new IdrObj(mID, new Point(x, y,mFloor),IndoorSpace.gPartitions.get(curParID));
 		return newObj;
+	}
+
+	public double getRadius() {
+		return radius;
+	}
+
+	public void setRadius(double radius) {
+		this.radius = radius;
 	}
 
 }

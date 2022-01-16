@@ -38,10 +38,10 @@ public class Experiment {
 //		System.out.println( runtime.maxMemory()/1024.0+ " " +runtime.totalMemory() /1024.0 + " "+ runtime.freeMemory()/1024.0);
 
 		System.out.println("args.length: " + args.length);
-		if (args.length < 14) {
+		if (args.length < 13) {
 			System.out.println(
-					"usage: [statFilename][numOfTrials] [totalLifecycle] [dis] [n/f] [f] [n] [d] [r] [batch] [prune] [T_p] [T_Min] [T_Max]");
-			System.out.println("e.g., java -jar sdm.jar example.txt 5 60 0 500 20 10000 3 2 1 1 10 5 20");
+					"usage: [numOfTrials] [totalLifecycle] [dis] [n/f] [f] [n] [d] [r] [batch] [prune] [T_p] [T_Min] [T_Max]");
+			System.out.println("e.g., java -jar sdm.jar 5 60 0 500 20 10000 3 4 1 1 10 5 20");
 			System.exit(-1);
 		}
 
@@ -49,8 +49,9 @@ public class Experiment {
 		// parameter setting in this run.
 
 		int c = 0;
-		AlgCSDM.statFile = args[c++];
-		AlgCSDM.resultFile = "result" + AlgCSDM.statFile;
+//		AlgCSDM.statFile = args[c++];
+//		AlgCSDM.resultFile = "result" + AlgCSDM.statFile;
+		
 		numOfTrials = Integer.parseInt(args[c++]);
 		monTimestampsSize = Integer.parseInt(args[c++]);
 
@@ -71,7 +72,8 @@ public class Experiment {
 //		AlgCSDM.distTH = Integer.parseInt(args[c++]);
 //		AlgCSDM.r_min = Integer.parseInt(args[c++]);
 		AlgCSDM.distTH = Double.parseDouble(args[c++]);
-		AlgCSDM.r_min = Double.parseDouble(args[c++]) ;
+		AlgCSDM.dia = Double.parseDouble(args[c++]);
+		AlgCSDM.r_min = AlgCSDM.dia/2;
 
 		AlgCSDM.batchProcessing = Integer.parseInt(args[c++]);
 		AlgCSDM.betaPruning = Integer.parseInt(args[c++]);
@@ -103,16 +105,16 @@ public class Experiment {
 		System.out.println("Number of Trials: " + numOfTrials);
 		System.out.println("Total Life Cycle: " + monTimestampsSize);
 		System.out.println("Number of objects: " + DataGenConstant.nObjects);
-		System.out.println("epsilon: " + AlgCSDM.distTH + " radius: " + AlgCSDM.r_min);
+		System.out.println("epsilon: " + AlgCSDM.distTH + " dia: " + AlgCSDM.dia);
 		System.out.println("batchProcessing: " + AlgCSDM.batchProcessing + " pruning: " + AlgCSDM.betaPruning);
 		System.out.println("T_P: " + OTTConstant.predictingPeriod + " T_Min: " + OTTConstant.minSamplingPeriod
 				+ " T_Max:" + OTTConstant.maxSamplingPeriod);
-		System.out.println("Number of floors:" + DataGenConstant.nFloor + " Scale: " + DataGenConstant.scale);
+		System.out.println("Number of floors:" + DataGenConstant.nFloor);
 
 		// ----------------------------------
 
 		for (int i = 1; i <= numOfTrials; i++) {
-			System.out.println("---------------------------- i=" + i + " ----------------------------");
+//			System.out.println("---------------------------- i=" + i + " ----------------------------");
 //					random = new Random(1);
 			QueryUpdate.cntRun = 0;
 			QueryUpdate.totalRunTime = 0;

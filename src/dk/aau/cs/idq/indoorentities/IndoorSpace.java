@@ -8,6 +8,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import org.khelekore.prtree.PRTree;
 
+
 import dk.aau.cs.idq.utilities.DataGenConstant;
 
 /**
@@ -46,6 +47,9 @@ public class IndoorSpace {
 
 	/** the in-memory D2D Matrix */
 	public static double[][] gD2DMatrix = new double[220][220];
+	
+	/** the in-memory D2D Index */
+	public static int[][] gD2DIndex = new int[220][220];
 
 	/** the in-memory P2P Matrix */
 	public static int[][] gP2PMatrix = new int[141][141];
@@ -53,7 +57,6 @@ public class IndoorSpace {
 	/** the in-memory P2P Matrix */
 	public static int[][][] gP2PMatrix2 = new int[141][141][10];
 
-	
 	/** the in-memory Objects Size Table */
 	public static SortedMap<Integer, Integer> sizeObjsTable = new TreeMap<Integer, Integer>();
 
@@ -64,7 +67,6 @@ public class IndoorSpace {
 	/// current observed indoor objects separated by floors
 	public static ArrayList<ArrayList<IdrObj>> observedObjsList = new ArrayList<ArrayList<IdrObj>>(
 			DataGenConstant.nFloor);
-
 
 	/** OTT */
 	/// <objID, recordTime>
@@ -83,6 +85,5 @@ public class IndoorSpace {
 
 	/** the Number of Partitions per floor */
 	public static int gNumberParsPerFloor;
-
 
 }

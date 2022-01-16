@@ -36,7 +36,7 @@ public class Group {
 
 		indoorURs.add(ur1);
 		this.recordTime = recordTime;
-		this.r = ur1.getR_min();
+		this.r = ur1.getR_i();
 		this.sp = new SampledPoint(ur1.getmPoint());
 	}
 
@@ -85,7 +85,7 @@ public class Group {
 		double radius = 0;
 
 		for (IndoorUR ur : indoorURs) {
-			double d = ur.getmPoint().eDist(sp) + ur.getR_min();
+			double d = ur.getmPoint().eDist(sp) + ur.getR_i();
 			if (d > radius)
 				radius = d;
 		}

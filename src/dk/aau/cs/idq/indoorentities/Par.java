@@ -36,7 +36,8 @@ public class Par extends Rect implements Serializable{
 
 	private List<LeavePair> leaveablePars = new ArrayList<LeavePair>();			// the Partitions that this partition can touch for the next interval
 
-//	private List<SampledPoint> mSampledPoints = new ArrayList<SampledPoint>();	// the indoor objects in the partition for the moment
+
+    private ArrayList<IdrObj> mObjects = new ArrayList<>(); // the objects in this partition
 
 	private HashMap<String, D2Ddistance> d2dHashMap;							// the distance between the relevant doors of this partition	
 	
@@ -353,7 +354,27 @@ public class Par extends Rect implements Serializable{
 		
 	}
 	
-	
+	  /**
+     * add an object in this partition
+     * @param objectId
+     */
+    public void addObject(IdrObj obj) {
+        if (!this.mObjects.contains(obj)) {
+            this.mObjects.add(obj);
+        }
+    }
+    /**
+     * get objects in this partition
+     * @return
+     */
+    public ArrayList<IdrObj> getmObjects() {
+        return mObjects;
+    }
+
+	public void removeObject(IdrObj obj) {
+		// TODO Auto-generated method stub
+		 this.mObjects.remove(obj);
+	}
 	
 
 }

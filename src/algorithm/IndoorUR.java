@@ -6,6 +6,7 @@ package algorithm;
 import java.util.*;
 
 import dk.aau.cs.idq.indoorentities.Door;
+import dk.aau.cs.idq.indoorentities.IdrObj;
 import dk.aau.cs.idq.indoorentities.IndoorSpace;
 import dk.aau.cs.idq.indoorentities.LeavePair;
 import dk.aau.cs.idq.indoorentities.NextPossiblePar;
@@ -27,9 +28,9 @@ import org.apache.commons.math3.random.GaussianRandomGenerator;
  */
 public class IndoorUR {
 
-	private SampledPoint mPoint; // the position of the Sample
+	private SampledPoint mPoint; // the position of ci
 
-	private Par curINPar; // par of the Sample Point located in
+	private Par corePar; // the partition of ci lies in
 
 	private int recordTime; // the record time of this Sample
 
@@ -50,16 +51,13 @@ public class IndoorUR {
 	// storing the actual[0] and virtual sample point
 	private List<SampledPoint> mPointsList = new ArrayList<SampledPoint>();
 
-	// r_record-d([0]-[x])
-	private List<Double> radList = new ArrayList<Double>();
-
 	private List<Par> initialPars = new ArrayList<Par>(); // initial Pars of the UR
 
 	private List<List<Par>> parsList = new ArrayList<List<Par>>(); // *additional* Pars at each time
 
-	private double r_record; /// the minimum radius of the ur i.e., r at recordTime
+	private double rad_i; /// the minimum radius of the ur i.e., r at recordTime
 
-	private double r_indoor; /// the minimum indoor radius of the ur i.e., r at recordTime, for type 2 objec
+	private double rad_type2; /// the minimum indoor radius of the ur i.e., r at recordTime, for type 2 objec
 
 	/// the type of UR/object 1=single ;2=connected ;3=disconnected
 	private int initialType;
@@ -85,21 +83,21 @@ public class IndoorUR {
 	 * 
 	 * @param mPoint
 	 * @param recordTime
-	 * @param flag       = 1: generate monteCarloPoint
-	 * 
-	 * @param r_min      //also use to decide the type of the UR
+	 * @param r_record
 	 */
-	public IndoorUR(SampledPoint mPoint, int recordTime, double r_min) {
-		this.mPoint = mPoint;
+	public IndoorUR(IdrObj o1, int recordTime, double r_record) {
+
+		Point p1 = o1.getmSampledPoints().get(0); // only 1 sample here
+		this.mPoint = new SampledPoint(o1.getmID(), p1.getX(), p1.getY(), p1.getmFloor(), o1.getCurPar());
 		this.recordTime = recordTime;
 		this.lastGenTime = recordTime;
-		this.r_record = 0.5 + AlgCSDM.random.nextDouble() * (r_min - 0.5);
-		this.curINPar = mPoint.getCurPar();
+		this.rad_i = r_record;
+		this.corePar = o1.getCurPar();
 
-		calcInitialType();// decide the type of UR
-		setSamplePointsList(); // create those virtual sp
-		setCurInPars(); // find the initial pars
-		setTypeTimes(); // set the types
+		initializeUR(); // create those initial variable
+		genUncertainParsList(); // generate the uncertain partitions recursively
+		findParsList(); // find the partitions list
+		determineObjTypesIntervals(); // set the object's types
 
 		// -----------------------------------------------
 		// create an empty one to keep the correspondingness of index
@@ -141,90 +139,111 @@ public class IndoorUR {
 
 	}
 
-	/**
-	 * 
-	 * @return get the initial type of the object at time=recordTime
-	 */
-	public void calcInitialType() {
-
-		initialType = 1; // default
-
-		Par par = mPoint.getCurPar();
-		List<Integer> doors = par.getmDoors();
-		// for each door
-		for (int doorID : doors) {
-
-			if (mPoint.eDist(IndoorSpace.gDoors.get(doorID)) < r_record) {
-				initialType = 2;
-				break;
-			}
-		}
-		// Y1 X1---X2
-		// |
-		// |
-		// Y2
-		if (mPoint.getSampledX() - r_record < par.getX1() || mPoint.getSampledX() + r_record > par.getX2()
-				|| mPoint.getSampledY() - r_record < par.getY1() || mPoint.getSampledY() + r_record > par.getY2())
-			initialType = 3;
-		return;
-	}
-
 	// create a virtual sample point for each involved part
-	private void setSamplePointsList() {
+	private void initializeUR() {
 
-		initialPars.add(mPoint.getCurPar());// actual point in [0]
+		initialPars.add(corePar);// actual point in [0]
 
 		// -----
-		// find out initial pars.
-		double marginLeft = mPoint.getSampledX() - r_record;
-		double marginRight = mPoint.getSampledX() + r_record;
-		double marginTop = mPoint.getSampledY() - r_record;
-		double marginBottom = mPoint.getSampledY() + r_record;
+		// initialPars
+		double marginLeft = mPoint.getSampledX() - rad_i;
+		double marginRight = mPoint.getSampledX() + rad_i;
+		double marginTop = mPoint.getSampledY() - rad_i;
+		double marginBottom = mPoint.getSampledY() + rad_i;
 
 		Iterable<Par> pars = IndoorSpace.gRTree.find(marginLeft, marginTop, marginRight, marginBottom);
 		for (Par par : pars) {
 //			System.out.println("" + par.toString());
 
-			if (par.getmID() + IndoorSpace.gNumberParsPerFloor * mPoint.getmFloor() == mPoint.getCurPar().getmID())
+			if (par.getmID() + IndoorSpace.gNumberParsPerFloor * mPoint.getmFloor() == corePar.getmID())
 				continue;
 			double dist = par.getMinDist(mPoint);
-			if (dist <= r_record) {
+			if (dist <= rad_i) {
 				initialPars.add(IndoorSpace.gPartitions
 						.get(par.getmID() + IndoorSpace.gNumberParsPerFloor * mPoint.getmFloor()));
 
 			}
 		}
-		// -----
+		// --------------------------------------
+		// initialType
+		if (initialPars.size() == 1) {
+			initialType = 1; // default
+		} else {
+			initialType = 3;
+		}
+		// post-check for type 2
+		List<Integer> doors = corePar.getmDoors();
+		// for each door
+		for (int doorID : doors) {
+			if (mPoint.eDist(IndoorSpace.gDoors.get(doorID)) < rad_i) {
+				initialType = 2;
+				break;
+			}
+		}
+
+		// --------------------------------------
+		// mPointList
 		// find the virtual sample Point for each part
 		for (Par par : initialPars) {
 			// ---
 			double x = mPoint.getSampledX();
 			double y = mPoint.getSampledY();
 
-			if (x < par.getX1())
-				x = par.getX1();
-			else if (x > par.getX2())
-				x = par.getX2();
-
-			if (y < par.getY1())
-				y = par.getY1();
-			else if (y > par.getY2())
-				y = par.getY2();
+//			if (x < par.getX1())
+//				x = par.getX1();
+//			else if (x > par.getX2())
+//				x = par.getX2();
+//
+//			if (y < par.getY1())
+//				y = par.getY1();
+//			else if (y > par.getY2())
+//				y = par.getY2();
 			// ---
-			SampledPoint pt = new SampledPoint(mPoint.getObjID(), x, y, mPoint.getmFloor(), par);
+			SampledPoint pt = new SampledPoint(mPoint.getObjID(), x, y, mPoint.getmFloor(), par); // forced par
 			mPointsList.add(pt);
-			radList.add(r_record - pt.eDist(mPoint));
+//			radList.add(r_record);
 		}
-		// -------
+	}
 
+	/**
+	 * Calculate the ri= max_i |c,o[i]|_{maxI}
+	 * 
+	 * called at record time !
+	 * 
+	 * @return
+	 */
+	private void calcRadType2() {
+		// TODO Auto-generated method stub
+
+		rad_type2 = 0;
+		double maxDist = 0;
+		// for each door in cur part
+		// calc by ri
+		for (Par par : initialPars)
+			for (int dID : par.getmDoors()) {
+				double dist = mPoint.eDist(IndoorSpace.gDoors.get(dID));
+				if (dist > maxDist)
+					maxDist = dist;
+			}
+
+		if (maxDist < 3 * rad_i)
+			rad_type2 = maxDist;
+		else
+			rad_type2 = 3 * rad_i;
+	}
+
+	public double getRType2() {
+		return rad_type2;
+	}
+
+	private void genUncertainParsList() {
 		// gen uncertainParsList
 		for (int i = 0; i < mPointsList.size(); i++) {
 			Par p = initialPars.get(i);
 			SampledPoint sp = mPointsList.get(i);
-			double rad = radList.get(i);
-			getUncertainPars2(p, sp, rad);
+//			double rad = radList.get(i);
+			getUncertainPars2(p, sp, rad_i);
 		}
-
 	}
 
 	/**
@@ -232,7 +251,7 @@ public class IndoorUR {
 	 * @param curTime
 	 * @return List of current reachable part, based on uncertainPars
 	 */
-	private void setCurInPars() {
+	private void findParsList() {
 		// TODO Auto-generated method stub
 
 		for (int i = 0; i < OTTConstant.maxSamplingPeriod; i++)
@@ -265,6 +284,7 @@ public class IndoorUR {
 
 		if (timeInterval < 0) {
 			System.err.println("timeInterval<0 @ getCurInPars.");
+			System.out.println("curTime: " + curTime + " recordTime: " + recordTime);
 			System.exit(-1);
 		}
 
@@ -282,7 +302,7 @@ public class IndoorUR {
 	 * Type relationship: 1 --> 2; 2--> 3; 3-->2
 	 * 
 	 */
-	private void setTypeTimes() {
+	private void determineObjTypesIntervals() {
 		typeTimes = new ArrayList<TypeTime>();
 		int curType = initialType;
 
@@ -290,7 +310,7 @@ public class IndoorUR {
 		int endTime = recordTime + OTTConstant.maxSamplingPeriod;
 
 		if (curType == 2) {
-			calcRiType2();
+			calcRadType2();
 		}
 		while (true) {
 //			System.out.println("startTime: " + startTime + " endTime: " + endTime + " curType:" + curType);
@@ -298,7 +318,7 @@ public class IndoorUR {
 				// --- find the time change to 2 ---
 				// find distance to the closest doors in this part
 				double minDist = Constant.DISTMAX;
-				List<Integer> doors = mPoint.getCurPar().getmDoors();
+				List<Integer> doors = corePar.getmDoors();
 				// for each door
 				for (int doorID : doors) {
 					double dist = mPoint.eDist(IndoorSpace.gDoors.get(doorID));
@@ -340,8 +360,48 @@ public class IndoorUR {
 				// TODO two possible cases:
 				// change to 3 -> 3 forever
 				// change to 2 -> loop again
-				typeTimes.add(new TypeTime(3, startTime, endTime));
-				break;
+				if (initialType == 3) {
+					// pre-checking to filter forever type 3 case
+					// e.g., there exist a par cant connect to core part directly
+					List<Integer> doors = initialPars.get(0).getmDoors();
+					int overlapDoor = -1;
+					for (int i = 1; i < initialPars.size(); i++) {
+						Boolean overlap = false;
+						for (Integer d2 : initialPars.get(i).getmDoors()) {
+							if (doors.contains(d2)) {
+								overlap = true;
+								overlapDoor = d2;
+								break;
+							}
+						}
+						if (!overlap) {
+							// this par dont have door connect to core par
+							typeTimes.add(new TypeTime(3, startTime, endTime));
+							return;
+						}
+					}
+
+					// -----
+					// check the time connect to the door
+					// use one of them is enough
+					Door d2 = IndoorSpace.gDoors.get(overlapDoor);
+					double time = mPoint.eDist(d2) / DataGenConstant.maxVelocity;
+					if (time > OTTConstant.maxSamplingPeriod) {
+						// cannot reach, type 3 forever
+						typeTimes.add(new TypeTime(3, startTime, endTime));
+						return;
+					} else {
+						endTime = startTime + (int) time;
+						typeTimes.add(new TypeTime(3, startTime, endTime));
+						curType = 2;
+					}
+
+				} else {
+					// if initial type is NOT type 3
+					// it is forever 3
+					typeTimes.add(new TypeTime(3, startTime, endTime));
+					return;
+				}
 			} else {
 				System.err.println("Error curType value");
 				return;
@@ -353,6 +413,9 @@ public class IndoorUR {
 
 		} // end while
 	}
+
+	// ===================================================================
+	// ===================================================================
 
 	public void updateUR(int curTime) {
 
@@ -373,7 +436,7 @@ public class IndoorUR {
 		// -- copy exisiting points from prev time
 		// -- change prob of existing points
 		int timeinterval = curTime - recordTime;
-		double newRadius = r_record + timeinterval * DataGenConstant.maxVelocity; // maximum distance from center
+		double newRadius = rad_i + timeinterval * DataGenConstant.maxVelocity; // maximum distance from center
 		double sigma = newRadius / 6;
 
 		double cX = mPoint.getSampledX();
@@ -439,27 +502,27 @@ public class IndoorUR {
 		List<Point> newPoints = new ArrayList<Point>();
 
 		int numNewGaussianPoints = 10;
-		double newRadius = r_record;
+		double newRadius = rad_i;
 		/// ------------- generate new discrete samples ----------------------
 		int timeinterval = curTime - recordTime;
 		if (timeinterval == 0) {
 			// initial gen
 //			numNewGaussianPoints = 10;
-			numNewGaussianPoints = (int) (10 * Math.pow(r_record / 3.0, 2)); // r=3 = 10
-			newRadius = r_record;
-//			System.out.println("0numNewGaussianPoints: " + numNewGaussianPoints + " newRadius: " + newRadius + " r_record: " + r_record + " "
-//					+ Math.pow(newRadius / r_record, 2) + " oldSize:" + oldSize);
+			numNewGaussianPoints = (int) (10 * Math.pow(rad_i / 3.0, 2)); // r=3 = 10
+			newRadius = rad_i;
+//			System.out.println("0numNewGaussianPoints: " + numNewGaussianPoints + " newRadius: " + newRadius
+//					+ " r_record: " + rad_i + " " + Math.pow(newRadius / rad_i, 2) + " oldSize:" + oldSize);
 
 		} else {
 			// incremental
-			newRadius = r_record + timeinterval * DataGenConstant.maxVelocity; // maximum distance from center
+			newRadius = rad_i + timeinterval * DataGenConstant.maxVelocity; // maximum distance from center
 			/// (1/5)^2*100 = 4
 //			numNewGaussianPoints = (int) (4 * Math.pow(timeinterval * DataGenConstant.maxVelocity / r_record, 2)
 //					- oldSize);// increase by ratio
 			numNewGaussianPoints = (int) (10 * Math.pow(newRadius / 3.0, 2) - oldSize);// increase by ratio
 			numNewGaussianPoints = Math.min(numNewGaussianPoints, oldSize);
-//			System.out.println("numNewGaussianPoints: " + numNewGaussianPoints + " newRadius: " + newRadius + " r_record: " + r_record + " "
-//					+ Math.pow(newRadius / r_record, 2) + " oldSize:" + oldSize);
+//			System.out.println("numNewGaussianPoints: " + numNewGaussianPoints + " newRadius: " + newRadius + " rad_i: "
+//					+ rad_i + " " + Math.pow(newRadius / rad_i, 2) + " oldSize:" + oldSize);
 		}
 		int cnt = 0;
 		double sigma = newRadius / 6; // the standard deviation of X/Y Gaussian distribution: (mean-3*sigma, mean
@@ -538,7 +601,7 @@ public class IndoorUR {
 
 		// all points are valid for type 1
 		if (type == 1) {
-			next_p.setCurrentPar(curINPar);
+			next_p.setCurrentPar(corePar);
 			return true;
 		}
 //		if (type == 2) {
@@ -640,40 +703,22 @@ public class IndoorUR {
 	}
 
 	/**
-	 * @param mPoint the mPoint to set
-	 */
-	public void setmPoint(SampledPoint mPoint) {
-		this.mPoint = mPoint;
-	}
-
-	/**
 	 * @return the recordTime
 	 */
 	public int getRecordTime() {
 		return recordTime;
 	}
 
-	/**
-	 * @param recordTime the recordTime to set
-	 */
-	public void setRecordTime(int recordTime) {
-		this.recordTime = recordTime;
-	}
-
 	public List<Point> getGaussianPoints(int curTime) {
 		return gaussianPointsList.get(curTime - recordTime);
 	}
 
-	public List<List<Point>> getGaussianPointsList() {
-		return gaussianPointsList;
+	public double getR_i() {
+		return rad_i;
 	}
 
-	public double getR_min() {
-		return r_record;
-	}
-
-	public void setR_min(double r) {
-		r_record = r;
+	public List<Par> getInitialPars() {
+		return initialPars;
 	}
 
 	public List<TypeTime> getTypeTimes() {
@@ -682,44 +727,6 @@ public class IndoorUR {
 
 	public HashMap<Integer, ArrayList<Point>> getPtsParMap(int curTime) {
 		return ptsParMapList.get(curTime - recordTime);
-	}
-
-	public void setPtsParMap(int curTime, HashMap<Integer, ArrayList<Point>> map) {
-		ptsParMapList.set(curTime - recordTime, map);
-	}
-
-	public int getInitialType() {
-		return initialType;
-	}
-
-	/**
-	 * Calculate the ri= max_i |c,o[i]|_{maxI}
-	 * 
-	 * at record time !
-	 * 
-	 * @return
-	 */
-	private void calcRiType2() {
-		// TODO Auto-generated method stub
-
-		r_indoor = 0;
-		double maxDist = 0;
-		// for each door in cur part
-		// calc by ri
-		for (int dID : curINPar.getmDoors()) {
-			double dist = r_record - mPoint.eDist(IndoorSpace.gDoors.get(dID));
-			if (dist > 0) {
-				dist += r_record + dist; // max. possible dist from center to a point in the region
-				if (dist > maxDist)
-					maxDist = dist;
-			}
-		}
-
-		r_indoor = maxDist;
-	}
-
-	public double getR_i() {
-		return r_indoor;
 	}
 
 	/**
@@ -742,11 +749,11 @@ public class IndoorUR {
 			Door nextDoor = IndoorSpace.gDoors.get(nextLeavePair.getmDoorID());
 			Par nextPar = IndoorSpace.gPartitions.get(nextLeavePair.getmParID());
 
-			//-----
-			//avoid duplicate pars.
+			// -----
+			// avoid duplicate pars.
 			if (initialPars.contains(nextPar))
 				continue;
-			//------
+			// ------
 
 			double p2dDist = sp.eDist(nextDoor) - rad;
 			double timeArrive = p2dDist / DataGenConstant.maxVelocity;

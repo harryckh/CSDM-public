@@ -5,6 +5,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
@@ -67,11 +68,7 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 			for (int i = 0; i < newObjs.size(); i++) {
 				IdrObj o1 = newObjs.get(i);
 				int o1ID = o1.getmID();
-
-				Point p1 = o1.getmSampledPoints().get(0); // only 1 sample here
-				SampledPoint sp1 = new SampledPoint(o1ID, p1.getX(), p1.getY(), p1.getmFloor(), o1.getCurPar());
-
-				IndoorUR ur1 = new IndoorUR(sp1, curTime, AlgCSDM.r_min);// initialize ur1 and ur2
+				IndoorUR ur1 = new IndoorUR(o1, curTime, o1.getRadius());// initialize ur1 and ur2
 				// create a group for each new object for merging purpose below
 				Group newObjGroup = new Group(ur1, curTime);
 				newObjGroups.put(o1ID, newObjGroup);
@@ -171,7 +168,7 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 				double minDist2SC = minc2scdiDist(ur1.getmPoint());
 				// consider other floors if it is close to the staircase
 				// min dist to staircse - farthest possible moving distance
-				double d = minDist2SC - ur1.getR_min() - (OTTConstant.predictingPeriod * DataGenConstant.maxVelocity);
+				double d = minDist2SC - ur1.getR_i() - (OTTConstant.predictingPeriod * DataGenConstant.maxVelocity);
 				d = Math.max(d, 0);
 
 				if (d + DataGenConstant.lenStairway < AlgCSDM.distTH) {
@@ -205,33 +202,162 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 				Group newObjGroup1 = newObjGroups.get(newObjs.get(i).getmID());
 				if (newObjGroup1 == null || newObjGroup1.getURs().size() == 0)
 					continue;
+				SampledPoint sp = newObjGroup1.getmPoint();
+				int floor = sp.getmFloor();
+//				//// =========================================================
+//				////  d2d range search 
 
-				// process objects in the same floor
-				int floor = newObjGroup1.getURs().get(0).getmPoint().getmFloor();
-				processG2F(newObjs.get(i).getmID(), newObjGroup1, floor);
+				if (AlgCSDM.batchProcessing == 1) {
+					HashSet<Integer> processedParsID = new HashSet<Integer>(); // storing the already processed par
+					HashSet<Integer> processedObjsID = new HashSet<Integer>(); // storing the already processed obj
+					int doorIDoffset = IndoorSpace.gNumberDoorsPerFloor * floor;
 
-				double minDist2SC = minc2scdiDist(newObjGroup1.getmPoint());
-				// consider other floors if it is close to the staircase
-				// min dist to staircse - farthest possible moving distance
-				double d = minDist2SC - newObjGroup1.getR_min()
-						- (OTTConstant.predictingPeriod * DataGenConstant.maxVelocity);
-				d = Math.max(d, 0);
+					// process curPar
+					for (int diID : sp.getCurPar().getmDoors()) {
+						Door di = IndoorSpace.gDoors.get(diID);
+						processG2D(newObjGroup1, di, processedParsID, processedObjsID);
+					}
+
+					// same floor
+					for (int diID : sp.getCurPar().getmDoors()) {
+						for (int djID : IndoorSpace.gD2DIndex[diID - doorIDoffset]) {
+							// note that this djID is not floor adjusted
+
+							double d2dDist = IndoorSpace.gD2DMatrix[diID - doorIDoffset][djID];
+							double bound = 2 * DataGenConstant.maxVelocity * OTTConstant.maxSamplingPeriod
+									- AlgCSDM.distTH - newObjGroup1.getR_min() - AlgCSDM.r_min;
+							if (d2dDist > bound)
+								break;
+//						System.out.println((diID - offset) + " " + djID+ " " + d2dDist + " " + bound);
+
+							// floor fix to get gDoor
+							Door dj = IndoorSpace.gDoors.get(djID + doorIDoffset);
+							processG2D(newObjGroup1, dj, processedParsID, processedObjsID);
+						}
+					}
+
+					// other floors
+
+					double minDist2SC = minc2scdiDist(newObjGroup1.getmPoint());
+					// consider other floors if it is close to the staircase
+					// min dist to staircse - farthest possible moving distance
+					double d = minDist2SC - newObjGroup1.getR_min()
+							- (OTTConstant.maxSamplingPeriod * DataGenConstant.maxVelocity);
 //				System.out.println("minDist2SC: " + minDist2SC + " " + newObjGroup1.getR_min() + " " + d + " " + floor);
-				if (d + DataGenConstant.lenStairway < AlgCSDM.distTH) {
-					// multiple floor is possible
+					if (d + DataGenConstant.lenStairway > AlgCSDM.distTH) {
+						continue;
+					}
+//				// multiple floor is possible
 					for (int j = 0; j < DataGenConstant.nFloor; j++) {
+						processedParsID = new HashSet<Integer>();// the par in diff floor must not repeat
+						processedObjsID = new HashSet<Integer>();
+
 						if (j == floor)
 							continue;
-						if (d + Math.abs(floor - j) * DataGenConstant.lenStairway < AlgCSDM.distTH) {
+						if (d + Math.abs(floor - j) * DataGenConstant.lenStairway > AlgCSDM.distTH) {
+							continue;
+						}
 //							System.out.println("process floor:" + j);
-							processG2F(newObjs.get(i).getmID(), newObjGroup1, j);
+						int offset2 = IndoorSpace.gNumberDoorsPerFloor * j;// for retrieve D2D dj
+						for (Par sc : Distance.stcs) { // for each sc
+							double minDist = Constant.DISTMAX;
+							int minSC = -1;
+							for (int dsc : sc.getmDoors()) {
+								double dist = Distance.p2diDist(sp, IndoorSpace.gDoors.get(dsc));
+								if (dist < minDist) {
+									minDist = dist;
+									minSC = dsc;
+								}
+
+							}
+							for (int djID : IndoorSpace.gD2DIndex[minSC]) {
+
+								if (minSC == djID)
+									continue;
+
+								double d2dDist = IndoorSpace.gD2DMatrix[minSC][djID] + minDist2SC
+										+ Math.abs(floor - j) * DataGenConstant.lenStairway;
+								double bound = 2 * DataGenConstant.maxVelocity * OTTConstant.maxSamplingPeriod
+										+ AlgCSDM.distTH + newObjGroup1.getR_min() + AlgCSDM.r_min;
+								if (d2dDist > bound)
+									break;
+//									System.out.println((diID - offset) + " " + djID+ " " + d2dDist + " " + bound);
+
+								// floor fix to get gDoor
+								Door dj = IndoorSpace.gDoors.get(djID + offset2);
+								processG2D(newObjGroup1, dj, processedParsID, processedObjsID);
+							}
+						}
+					}
+				} else {
+					//// =========================================================
+					//no batch
+					// process objects in the same floor
+					processG2F(newObjs.get(i).getmID(), newObjGroup1, floor);
+
+					double minDist2SC = minc2scdiDist(newObjGroup1.getmPoint());
+					// consider other floors if it is close to the staircase
+					// min dist to staircse - farthest possible moving distance
+					double d = minDist2SC - newObjGroup1.getR_min()
+							- (OTTConstant.maxSamplingPeriod * DataGenConstant.maxVelocity);
+//				d = Math.max(d, 0);
+//				System.out.println("minDist2SC: " + minDist2SC + " " + newObjGroup1.getR_min() + " " + d + " " + floor);
+					if (d + DataGenConstant.lenStairway < AlgCSDM.distTH) {
+						// multiple floor is possible
+						for (int j = 0; j < DataGenConstant.nFloor; j++) {
+							if (j == floor)
+								continue;
+							if (d + Math.abs(floor - j) * DataGenConstant.lenStairway < AlgCSDM.distTH) {
+//							System.out.println("process floor:" + j);
+								processG2F(newObjs.get(i).getmID(), newObjGroup1, j);
+							}
 						}
 					}
 				}
+				// =========================================================
 			}
 		} // end for
 			// ---------------------------------------------------------------------
 
+	}
+
+	/**
+	 * process the group to the two partitions associated with dj
+	 * 
+	 * @param newObjGroup1
+	 * @param dj
+	 * @param processedParsID
+	 */
+	private void processG2D(Group newObjGroup1, Door dj, HashSet<Integer> processedParsID,
+			HashSet<Integer> processedObjsID) {
+		for (int parjID : dj.getmPartitions()) {
+
+			if (processedParsID.contains(parjID)) {
+				continue;
+			}
+			// process o2o
+			processedParsID.add(parjID);
+			Par parj = IndoorSpace.gPartitions.get(parjID);
+
+			// for each object in the parj
+			for (IdrObj o2 : parj.getmObjects()) {
+				int o2ID = o2.getmID();
+
+				if (processedObjsID.contains(o2ID))
+					continue;
+
+				processedObjsID.add(o2ID);
+
+				int recordTime = IndoorSpace.OTT.getOrDefault(o2ID, -1);
+				if (recordTime == -1)
+					continue;
+
+				int t_f = Math.min(recordTime + OTTConstant.maxSamplingPeriod, curTime + OTTConstant.predictingPeriod);
+//									System.out.println("curTime:" + curTime + " t_f: " + t_f + " recordTime: " +recordTime);
+
+				processG2O(newObjGroup1, o2.getUr(), t_f);
+			}
+		}
 	}
 
 	// return true if all sc in [start,end) is within dist range
@@ -463,12 +589,13 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 			}
 
 			lastDistLBbyBeta = dist;
-		}// end for each time point
+		} // end for each time point
 
 	}
 
 	/**
 	 * put the objects in group ur2 to the group ur1
+	 * 
 	 * @param ur1
 	 * @param ur2
 	 * @param o2ID
@@ -648,7 +775,6 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 		tULB[0] = tLB;
 		tULB[1] = tUB;
 
-
 		return;
 	}
 
@@ -673,15 +799,15 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 		double tl1 = ur1.getRecordTime();
 		double tl2 = ur1.getRecordTime();
 
-		double r1 = ur1.getR_min();
-		double r2 = ur2.getR_min();
+		double r1 = ur1.getR_i();
+		double r2 = ur2.getR_i();
 
 		// ---
 		if (type1 == 2) {
-			r1 = ur1.getR_i();
+			r1 = ur1.getRType2();
 		}
 		if (type2 == 2) {
-			r2 = ur2.getR_i();
+			r2 = ur2.getRType2();
 		}
 		// ---
 
@@ -709,8 +835,8 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 		List<Par> pars1 = ur1.getCurInPars(tl1);
 		List<Par> pars2 = ur2.getCurInPars(tl2);
 
-		double r1 = ur1.getR_min();
-		double r2 = ur2.getR_min();
+		double r1 = ur1.getR_i();
+		double r2 = ur2.getR_i();
 
 //		System.out.println("pars1:");
 //		for(Par p:pars1)
@@ -824,7 +950,7 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 		List<Par> pars2 = ur2.getCurInPars(tl2);
 
 		double r1 = ur1.getR_min();
-		double r2 = ur2.getR_min();
+		double r2 = ur2.getR_i();
 
 //		System.out.println("pars1:");
 //		for(Par p:pars1)
@@ -937,10 +1063,10 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 		List<Par> pars1 = ur1.getCurInPars(tl1);
 		List<Par> pars2 = ur2.getCurInPars(tl2);
 
-		double r1 = ur1.getR_min();
-		double r2 = ur2.getR_min();
+		double r1 = ur1.getR_i();
+		double r2 = ur2.getR_i();
 		if (type1 == 2)
-			r1 = ur1.getR_i();
+			r1 = ur1.getRType2();
 
 		double minDist = Constant.DISTMAX;
 		double maxDist = 0;
@@ -991,7 +1117,7 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 		int tl1 = ur1.getRecordTime();
 		List<Par> pars1 = ur1.getCurInPars(tl1);
 
-		double r1 = ur1.getR_min();
+		double r1 = ur1.getR_i();
 
 		double minDist = Constant.DISTMAX;
 		double maxDist = 0;
@@ -1040,8 +1166,8 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 		List<Par> pars1 = ur1.getCurInPars(t);
 		List<Par> pars2 = ur2.getCurInPars(t);
 
-		double r1 = ur1.getR_min();
-		double r2 = ur2.getR_min();
+		double r1 = ur1.getR_i();
+		double r2 = ur2.getR_i();
 
 //		System.out.println("pars1:");
 //		for(Par p:pars1)
@@ -1134,7 +1260,6 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 		return;
 	}
 
-
 	// -----------------------------------------------
 
 	public static long totalRunTime = 0;
@@ -1170,6 +1295,5 @@ public class QueryUpdate implements Callable<ArrayList<ArrayList<String>>> {
 
 		return newResult;
 	}
-
 
 }

@@ -8,6 +8,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
 import dk.aau.cs.idq.datagen.DataGen;
 import dk.aau.cs.idq.datagen.OTTGen;
 import dk.aau.cs.idq.indoorentities.*;
@@ -25,7 +26,8 @@ public class AlgCSDM {
 	private int monTimestampsSize = 60;
 
 	public static double distTH = 3;
-	public static double r_min = 2; 
+	public static double r_min = 2;
+	public static double dia = 4;
 
 	public static int batchProcessing = 1;
 	public static int betaPruning = 1;
@@ -33,14 +35,14 @@ public class AlgCSDM {
 	// File name for both save and load
 	public static String sizeTable = "objsSize" + (DataGenConstant.nObjects) + ".txt";
 	public static String trajectory = "Trajectories" + (DataGenConstant.nObjects) + ".txt";
-	public static String resultFile = "result" + (DataGenConstant.nObjects) + ".txt";
-	public static String statFile = "stat" + (DataGenConstant.nObjects) + ".txt";
-	public static String sizeStat = "timestat" + (DataGenConstant.nObjects) + ".txt";
+
+	public static String resultFile = "result" + ".txt";
+	public static String statFile = "stat" + ".txt";
 
 	// Stat. storing multiple trials
 	private static long grandAvgRunTime = 0;
 	private static long grandAvgMem = 0;
-	private static long gradAvgNumOfResultsPerSecond = 0;
+	private static double gradAvgNumOfResultsPerSecond = 0;
 
 	// -------------------------------------------------------
 	// global result here.
@@ -83,11 +85,16 @@ public class AlgCSDM {
 		if (trialNum == 1)
 			ottGen.generateOTT(0, 0);// initialize everything including indoor space
 
+		/// -----
+//		genTree();
+		/// -----
+
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 
 		System.out.println("Trial " + trialNum + " : Running from t=0 to " + monTimestampsSize + " ... ");
 		// main execution loop
-		for (int curTime = 0; curTime < monTimestampsSize; curTime++) {
+		int curTime;
+		for (curTime = 0; curTime < monTimestampsSize; curTime++) {
 //			System.out.println("=== t=" + curTime + " === ");
 
 			List<List<IdrObj>> newObjsList = ottGen.genOTTbyTime_new(curTime, 1);// read new objects
@@ -138,8 +145,18 @@ public class AlgCSDM {
 
 		// shutdown the update thread
 		executor.shutdown();
+		ottGen.closeReader();
+
+		// remove all objects in all partitions
+		for (int dummytime = curTime; dummytime <= curTime + OTTConstant.maxSamplingPeriod; dummytime++) {
+			maintainOTT(dummytime, new ArrayList<List<IdrObj>>());
+		}
+
 		printStat(trialNum);
 	}
+
+	// range search
+	// find candidate is enough
 
 	private void printResult(int curTime, int numOfUpdate, int numOfNew, int numOfExpired) {
 		try {
@@ -175,26 +192,25 @@ public class AlgCSDM {
 		try {
 			FileWriter fw = new FileWriter(DataGen.outputPath + "/" + statFile);
 
-//			System.out.println("stat @t=" + curTime + " " + "cnt:" + QueryUpdate.cntRun);
-//			System.out.println("totalRunTime/cnt:" + QueryUpdate.totalRunTime / QueryUpdate.cntRun + " ("
-//					+ (double) QueryUpdate.totalRunTime / (QueryUpdate.cntRun * 1000000000.0) + "s)");
-//			System.out.println("totalMem/cnt:" + QueryUpdate.totalMem / QueryUpdate.cntRun);
-//			System.out.println("resultSize/cnt:" + totalNumOfResults / QueryUpdate.cntRun);
-
-//			fw.write((QueryUpdate.totalRunTime / QueryUpdate.cntRun) + "\n");
-//			fw.write((QueryUpdate.totalMem / QueryUpdate.cntRun) + "\n");
-//			fw.write(totalNumOfResults * 1.0 / QueryUpdate.cntRun + "\n");
-//			fw.write(QueryUpdate.cntRun + "\n");
-//			fw.write(QueryUpdate.df.format(QueryUpdate.totalRunTime / (QueryUpdate.cntRun * 1000000000.0)) + "\n\n");
-
 			grandAvgRunTime += QueryUpdate.totalRunTime / (QueryUpdate.cntRun);
 			grandAvgMem += QueryUpdate.totalMem / (QueryUpdate.cntRun);
-			gradAvgNumOfResultsPerSecond += totalNumOfResults / (QueryUpdate.cntRun);
+			gradAvgNumOfResultsPerSecond += totalNumOfResults * 1.0 / (QueryUpdate.cntRun * 1.0);
+
+//			System.out.println("grandAvgRunTime: " + (grandAvgRunTime / (i)) + " = "
+//					+ (grandAvgRunTime / (i * 1000000000.0)) + "s\n");
+//			System.out.println("grandAvgMem: " + (grandAvgMem / (i)) + "\n");
+//			System.out.println(gradAvgNumOfResultsPerSecond + " " + totalNumOfResults);
+//			System.out.println("grandAvgNumOfResultsPerSecond: "
+//					+ QueryUpdate.df.format((totalNumOfResults * 1.0 / (QueryUpdate.cntRun * 1.0)) / (i * 1.0)) + "\n");
+//			System.out.println("grandAvgNumOfResultsPerSecond: " + (gradAvgNumOfResultsPerSecond / (i*1.0)) + "\n");
 
 			/* stat avg over multiple runs */
 			fw.write((grandAvgRunTime / (i)) + "\n");
 			fw.write((grandAvgMem / (i)) + "\n");
-			fw.write(gradAvgNumOfResultsPerSecond / (i) + "\n");
+//			fw.write(gradAvgNumOfResultsPerSecond / (i) + "\n");
+//			fw.write(QueryUpdate.df.format((totalNumOfResults * 1.0 / (QueryUpdate.cntRun * 1.0)) / (i * 1.0)) + "\n");
+			fw.write((gradAvgNumOfResultsPerSecond / (i*1.0)) + "\n");
+
 			fw.write(QueryUpdate.cntRun + "\n");
 //			fw.write(QueryUpdate.df.format(grandAvgRunTime / (i * 1000000000.0)) + "\n");
 			fw.write("\n");
@@ -236,9 +252,19 @@ public class AlgCSDM {
 		int sumRemove = 0;
 		// ---- adding new obj
 		for (List<IdrObj> newObjs : newObjsList) {
+			for (int i = 0; i < newObjs.size(); i++) {
+				IdrObj obj = newObjs.get(i);
+				IndoorSpace.OTT.put(obj.getmID(), curTime);
 
-			for (int i = 0; i < newObjs.size(); i++)
-				IndoorSpace.OTT.put(newObjs.get(i).getmID(), curTime);
+				// --
+				// add to parts
+				for (Par par : obj.getUr().getInitialPars()) {
+					par.addObject(obj);
+				}
+
+				// --
+
+			}
 		}
 		// --- removed expired
 		// need to use iterator here, as we need to remove entry inside the loop
@@ -253,20 +279,25 @@ public class AlgCSDM {
 				// remove OTT entry and the obj
 //				System.out.println("Removing Object: " + entry.getKey() + " tl:" + entry.getValue());
 				for (int i = 0; i < DataGenConstant.nFloor; i++) {
-
-//					IdrObj oo = IndoorSpace.observedObjsList.get(i).remove(entry.getKey());
-					// ----
 					List<IdrObj> objs = IndoorSpace.observedObjsList.get(i);
 					for (int j = 0; j < objs.size(); j++) {
-						if (objs.get(j).getmID() == entry.getKey()) {
-//							System.out.println("Removing " + objs.get(j).getmID());
-							if (objs.get(j) != null)
-								objs.get(j).setUr(null);
+						IdrObj obj = objs.get(j);
+						if (obj.getmID() == entry.getKey()) {
+//							System.out.println("Removing " + obj.getmID() + " par: " + obj.getCurPar());
+							if (obj != null) {
+								// ---
+//								obj.getCurPar().getmObjects().remove(obj);
+
+								for (Par par : obj.getUr().getInitialPars()) {
+									par.removeObject(obj);
+								}
+								// ---
+								obj.setUr(null);
+							}
 							objs.remove(j);
 							break;
 						}
 					}
-					// ---
 				}
 				it.remove();
 				sumRemove++;

@@ -8,6 +8,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -377,6 +378,87 @@ public class DataGen {
 				e.printStackTrace();
 			}
 
+		}
+	}
+
+	public void loadD2DIndex() {
+		String d2dDir = outputPath + "/D2DIndex.txt";
+		File file = new File(d2dDir);
+		if (!file.exists()) {
+			FileWriter fw;
+			try {
+				fw = new FileWriter(d2dDir);
+
+				// --
+				// for each row in d2dmatrix, sort and put in d2dindex
+				for (int i = 0; i < IndoorSpace.gD2DMatrix.length; i++) {
+					int size = IndoorSpace.gD2DMatrix[i].length;
+					int[] indices = new int[size];
+					for (int j = 0; j < indices.length; j++) {
+						indices[j] = j;
+					}
+					double[] values = Arrays.copyOf(IndoorSpace.gD2DMatrix[i], size);
+					bubbleSort(values, indices);
+					//indices is what we want
+					IndoorSpace.gD2DIndex[i]  = indices;
+				}
+				// --
+				for (int i = 0; i < IndoorSpace.gD2DIndex.length; i++) {
+					String templine = "";
+					for (int j = 0; j < IndoorSpace.gD2DIndex.length; j++) {
+						templine = templine + IndoorSpace.gD2DIndex[i][j] + " ";
+					}
+					fw.write(templine + "\n");
+				}
+				fw.flush();
+				fw.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} else {
+
+			try {
+				FileReader fr = new FileReader(d2dDir);
+				BufferedReader br = new BufferedReader(fr);
+				String readOneLine;
+				int i = 0;
+				while ((readOneLine = br.readLine()) != null) {
+					String[] items = readOneLine.split(" ");
+					for (int j = 0; j < items.length; j++) {
+						IndoorSpace.gD2DIndex[i][j] = Integer.valueOf(items[j]);
+					}
+					i++;
+				}
+				br.close();
+				fr.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
+	}
+
+
+	/*
+	 * (in-place) sort the values in @values indices are the original position of
+	 * the values in @values
+	 * 
+	 * from small to large
+	 */
+	private static void bubbleSort(double[] values, int[] indices) {
+		for (int k = 0; k < values.length; k++) {
+			for (int l = k + 1; l < values.length; l++) {
+				if (values[k] > values[l]) {
+					double temp_value = values[k];
+					values[k] = values[l];
+					values[l] = temp_value;
+					int temp_index = indices[k];
+					indices[k] = indices[l];
+					indices[l] = temp_index;
+				}
+			}
 		}
 	}
 

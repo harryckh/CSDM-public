@@ -17,6 +17,7 @@ import algorithm.AlgCSDM;
 import dk.aau.cs.idq.indoorentities.Door;
 import dk.aau.cs.idq.indoorentities.IdrObj;
 import dk.aau.cs.idq.indoorentities.IndoorSpace;
+import dk.aau.cs.idq.indoorentities.Par;
 import dk.aau.cs.idq.indoorentities.Point;
 import dk.aau.cs.idq.indoorentities.SampledPoint;
 import dk.aau.cs.idq.utilities.DataGenConstant;
@@ -34,8 +35,8 @@ public class OTTGen {
 
 	public List<List<SampledPoint>> samplesPointsInFloors = new ArrayList<>();
 
-	FileReader frT;
-	BufferedReader brT;
+	private FileReader frT;
+	private BufferedReader brT;
 
 	public OTTGen() {
 
@@ -44,7 +45,6 @@ public class OTTGen {
 			samplesPointsInFloors.add(samplesPointsInOneFloor);
 		}
 
-		FileReader frT;
 		try {
 			frT = new FileReader(DataGen.outputPath + "/" + AlgCSDM.trajectory);
 			brT = new BufferedReader(frT);
@@ -253,6 +253,8 @@ public class OTTGen {
 		}
 	}
 
+	private String prevReadLine = null;
+
 	/**
 	 * read and retrieve useful records for a given current time and a given
 	 * findStringLists
@@ -274,7 +276,18 @@ public class OTTGen {
 //			FileWriter fwTimeRecord = new FileWriter(DataGen.outputPath + "/timetable_" + curTime + ".txt");
 //			FileWriter fwSampledPoint = new FileWriter(DataGen.outputPath + "/sampledpoint_" + curTime + ".txt");
 			String readOneLine;
-			while ((readOneLine = brT.readLine()) != null) {
+//			while ((readOneLine = brT.readLine()) != null) {
+			while (true) {
+				// ----------------------
+				if (prevReadLine == null) {
+					if ((readOneLine = brT.readLine()) == null) {
+						break;
+					}
+				} else {
+					readOneLine = prevReadLine;
+					prevReadLine = null;
+				}
+				// ----------------------
 				String[] items = readOneLine.split("\t");
 //				if (Integer.valueOf(items[0]) + OTTConstant.minSamplingPeriod > curTime) {
 				if (Integer.valueOf(items[0]) == curTime) {
@@ -293,14 +306,39 @@ public class OTTGen {
 							int curParID = Integer.valueOf(items[6]);
 							IdrObj newObj = new IdrObj(mID, new Point(x, y, mFloor),
 									IndoorSpace.gPartitions.get(curParID));
-
-							//----
+							// ----
+							// set r_i
+							double rad_i = 0.5 + AlgCSDM.random.nextDouble() * (AlgCSDM.r_min - 0.5);
+							newObj.setRadius(rad_i);
+//							// ----
+//							// add to parts.
+//							double marginLeft = x - rad_i;
+//							double marginRight = x + rad_i;
+//							double marginTop = y - rad_i;
+//							double marginBottom = y + rad_i;
+//
+//							Iterable<Par> pars = IndoorSpace.gRTree.find(marginLeft, marginTop, marginRight,
+//									marginBottom);
+//							for (Par par : pars) {
+//								int actualParID = par.getmID() + IndoorSpace.gNumberParsPerFloor * mFloor;
+//								IndoorSpace.gPartitions.get(actualParID).addObject(newObj);
+//							}
+//							Par par = IndoorSpace.gPartitions.get(curParID);
+							// ----
+							// bug fix. remove existing one
 							ArrayList<IdrObj> a = IndoorSpace.observedObjsList.get(mFloor);
 							for (int j = 0; j < a.size(); j++) {
-								if (a.get(j).getmID() == mID) {
+								IdrObj obj = a.get(j);
+								if (obj.getmID() == mID) {
 //									System.out.println("Removing old one: " + a.get(j).getmID());
-									if (a.get(j) != null)
-										a.get(j).setUr(null);
+									if (obj != null) {
+										// ---
+										for (Par par : obj.getUr().getInitialPars()) {
+											par.removeObject(obj);
+										}
+										// ---
+										obj.setUr(null);
+									}
 									a.remove(j);
 									break;
 								}
@@ -310,7 +348,6 @@ public class OTTGen {
 							newObjsList.get(mFloor).add(newObj);
 							// delay adding to after processing
 //							IndoorSpace.OTT.put(mID, recordTime);
-
 							// ------
 							newObj.getCurrentUncertainRecord();
 //							fwOTT.write(items[1] + "\t" + items[0] + "\t" + newObj.getCurrentUncertainRecord() + "\n");
@@ -318,9 +355,10 @@ public class OTTGen {
 						}
 					}
 				}
-				if (Integer.valueOf(items[0]) > curTime)
+				if (Integer.valueOf(items[0]) > curTime) {
+					prevReadLine = readOneLine;
 					break;
-
+				}
 			}
 //			brT.close();
 //			frT.close();
@@ -329,6 +367,18 @@ public class OTTGen {
 			e.printStackTrace();
 		}
 		return newObjsList;
+	}
+
+	public void closeReader() {
+		try {
+			if (brT != null)
+				brT.close();
+			if (frT != null)
+				frT.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	/**
@@ -386,6 +436,7 @@ public class OTTGen {
 		// TODO Auto-generated method stub
 
 		dataGen.loadD2DMatrix();
+		dataGen.loadD2DIndex();
 		dataGen.loadP2PMatrix();
 		dataGen.loadP2PMatrix2();
 		// --
