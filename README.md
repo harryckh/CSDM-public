@@ -68,6 +68,19 @@ which format is explained in Appendix C.
 The running statistics are stored in "stat.txt"
 which format is explained in Appendix D.
 
+Citation
+============================
+The code can be used for research purpose. Please cite our paper if you used it.
+
+	@article{chan2022continuous,
+		title={Continuous Social Distance Monitoring in Indoor Space},
+		author={Chan, Harry Kai-Ho and Li, Huan and Li, Xiao and Lu, Hua},
+		journal={Proceedings of the VLDB Endowment},
+		volume={15},
+		number={7},
+		year={2022},
+		publisher={VLDB Endowment}
+	}
 
 Appendix A. Explanation of the input parameters in Step 1
 ============================
